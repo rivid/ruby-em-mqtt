@@ -1,7 +1,9 @@
-
+require 'set'
 class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
 
   @@clients = Array.new
+  @@clients_hash = Hash.new
+  @@subscriptions = Subscription.new
 
   attr_accessor :client_id
   attr_accessor :last_packet
@@ -14,6 +16,7 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
 
   def initialize(logger)
     @logger = logger
+    @logger.info {'start'}
   end
 
   def post_init
@@ -22,13 +25,14 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
     @client_id = nil
     @keep_alive = 0
     @message_id = 0
-    @subscriptions = []
+    @subscriptions = Set.new
     @timer = nil
     logger.debug("TCP connection opened")
   end
 
   def unbind
     @@clients.delete(self)
+    @@clients_hash.delete(client_id.to_sym)
     @timer.cancel if @timer
     logger.debug("TCP connection closed")
   end
@@ -62,9 +66,13 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
     self.client_id = packet.client_id
 
     ## FIXME: disconnect old client with the same ID
+    if @@clients_hash[client_id.to_sym]
+      @@clients_hash[client_id.to_sym].disconnect
+    end
     send_packet MQTT::Packet::Connack.new
     @state = :connected
     @@clients << self
+    @@clients_hash[client_id.to_sym] = self
     logger.info("#{client_id} is now connected")
 
     # Setup a keep-alive timer
@@ -94,6 +102,17 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
   def subscribe(packet)
     packet.topics.each do |topic,qos|
       self.subscriptions << topic
+      @@subscriptions.add_sub(client_id,topic)
+    end
+    logger.info("#{client_id} has subscriptions: #{self.subscriptions}")
+
+    # FIXME: send subscribe acknowledgement
+  end
+
+  def unsubscribe(packet)
+    packet.topics.each do |topic,qos|
+      self.subscriptions.delete(topic)
+      @@subscriptions.remove_sub(client_id,topic)
     end
     logger.info("#{client_id} has subscriptions: #{self.subscriptions}")
 
@@ -101,10 +120,13 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
   end
 
   def publish(packet)
-    @@clients.each do |client|
-      if client.subscriptions.include?(packet.topic) or client.subscriptions.include?('#')
-        client.send_packet(packet)
-      end
+    #FIXME: topic length check, drop 0 length topic
+    #FIXME: topic_wildcard_len_check
+    #FIXME: qos check
+    #FIXME: Dropped too large PUBLISH 
+    #FIXME: Check for topic access 
+    @@subscriptions.search(packet.topic).each do |client_id|
+      @@clients_hash[client_id.to_sym].send_packet(packet)
     end
   end
 

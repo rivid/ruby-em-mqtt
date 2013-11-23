@@ -8,6 +8,7 @@ require "em/mqtt/version"
 
 module EventMachine::MQTT
 
+  autoload :Subscription,     'em/mqtt/subscription'
   autoload :ClientConnection, 'em/mqtt/client_connection'
   autoload :Connection,       'em/mqtt/connection'
   autoload :Server,           'em/mqtt/server'
