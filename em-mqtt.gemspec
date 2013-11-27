@@ -11,9 +11,9 @@ Gem::Specification.new do |gem|
   gem.homepage    = 'http://github.com/njh/ruby-em-mqtt'
   gem.summary     = 'MQTT for EventMachine'
   gem.description = 'This gem adds MQTT (Message Queue Telemetry Transport) protocol support to EventMachine.'
-  gem.license     = 'Ruby' if gem.respond_to?(:license=)
+  gem.license     = 'MIT' if gem.respond_to?(:license=)
 
-  gem.files         = %w(README COPYING GPL NEWS) + Dir.glob('lib/**/*.rb')
+  gem.files         = %w(README LICENSE NEWS) + Dir.glob('lib/**/*.rb')
   gem.test_files    = Dir.glob('spec/*_spec.rb')
   gem.executables   = %w(em-mqtt)
   gem.require_paths = %w(lib)
@@ -24,4 +24,5 @@ Gem::Specification.new do |gem|
   gem.add_development_dependency 'yard',        '>= 0.7.2'
   gem.add_development_dependency 'rake',        '>= 0.8.7'
   gem.add_development_dependency 'rspec',       '>= 2.6.0'
+  gem.add_development_dependency 'simplecov'
 end
