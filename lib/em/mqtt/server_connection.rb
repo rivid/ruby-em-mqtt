@@ -1,9 +1,10 @@
-require 'set'
 class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
+  require 'set'
+  require 'socket'
 
   @@clients = Array.new
   @@clients_hash = Hash.new
-  @@subscriptions = Subscription.new
+  @@subscriptions = EventMachine::MQTT::Subscription.new
 
   attr_accessor :client_id
   attr_accessor :last_packet
@@ -16,7 +17,6 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
 
   def initialize(logger)
     @logger = logger
-    @logger.info {'start'}
   end
 
   def post_init
@@ -32,7 +32,6 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
 
   def unbind
     @@clients.delete(self)
-    @@clients_hash.delete(client_id.to_sym)
     @timer.cancel if @timer
     logger.debug("TCP connection closed")
   end
@@ -46,6 +45,8 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
       ping(packet)
     elsif state == :connected and packet.class == MQTT::Packet::Subscribe
       subscribe(packet)
+    elsif state == :connected and packet.class == MQTT::Packet::Unsubscribe
+      unsubscribe(packet)
     elsif state == :connected and packet.class == MQTT::Packet::Publish
       publish(packet)
     elsif packet.class == MQTT::Packet::Disconnect
@@ -66,14 +67,17 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
     self.client_id = packet.client_id
 
     ## FIXME: disconnect old client with the same ID
-    if @@clients_hash[client_id.to_sym]
+    unless @@clients_hash[client_id.to_sym].nil?
       @@clients_hash[client_id.to_sym].disconnect
+      logger.debug("disconect old client:#{client_id} #{@@clients_hash[client_id.to_sym].object_id}")
     end
     send_packet MQTT::Packet::Connack.new
     @state = :connected
     @@clients << self
     @@clients_hash[client_id.to_sym] = self
-    logger.info("#{client_id} is now connected")
+    port, ip = Socket.unpack_sockaddr_in(get_peername)
+    #port, ip = Socket.unpack_sockaddr_in(get_sockname)
+    logger.info("new client #{client_id} is now connected from #{ip}:#{port}")
 
     # Setup a keep-alive timer
     if packet.keep_alive
@@ -90,8 +94,9 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
   end
 
   def disconnect
-    logger.debug("Closing connection to #{client_id}")
+    logger.info("client #{client_id} disconnected")
     @state = :disconnected
+    @@clients_hash[client_id.to_sym]
     close_connection
   end
 
@@ -104,9 +109,11 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
       self.subscriptions << topic
       @@subscriptions.add_sub(client_id,topic)
     end
-    logger.info("#{client_id} has subscriptions: #{self.subscriptions}")
+    logger.debug("#{client_id} has subscriptions: #{self.subscriptions.to_a}")
 
+    #logger.info("all clients #{@@clients_hash}")
     # FIXME: send subscribe acknowledgement
+    @@clients_hash[client_id.to_sym].send_packet(MQTT::Packet::Suback.new({:granted_qos=>0}))
   end
 
   def unsubscribe(packet)
@@ -114,9 +121,9 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
       self.subscriptions.delete(topic)
       @@subscriptions.remove_sub(client_id,topic)
     end
-    logger.info("#{client_id} has subscriptions: #{self.subscriptions}")
 
-    # FIXME: send subscribe acknowledgement
+    # FIXME: send unsubscribe acknowledgement
+    @@clients_hash[client_id.to_sym].send_packet(MQTT::Packet::Unsubscribe.new({:topics=>packets.topics}))
   end
 
   def publish(packet)
@@ -125,8 +132,9 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
     #FIXME: qos check
     #FIXME: Dropped too large PUBLISH 
     #FIXME: Check for topic access 
-    @@subscriptions.search(packet.topic).each do |client_id|
-      @@clients_hash[client_id.to_sym].send_packet(packet)
+    return if packet.topic.nil? or packet.topic.empty?
+    @@subscriptions.search_sub(packet.topic).each do |client_id|
+      @@clients_hash[client_id.to_sym].send_packet(packet) unless @@clients_hash[client_id.to_sym].nil?
     end
   end
 

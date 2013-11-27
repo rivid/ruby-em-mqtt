@@ -25,7 +25,12 @@ class EventMachine::MQTT::Connection < EventMachine::Connection
 
     # Are we at the start of a new packet?
     if @packet.nil? and @data.length >= 2
-      @packet = MQTT::Packet.parse_header(@data)
+      begin
+        @packet = MQTT::Packet.parse_header(@data)
+      rescue
+        @packet = nil
+        @data = ''
+      end
     end
 
     # Do we have the the full packet body now?
@@ -36,7 +41,7 @@ class EventMachine::MQTT::Connection < EventMachine::Connection
       @last_received = Time.now
       process_packet(@packet)
       @packet = nil
-      receive_data ''
+      #receive_data ''
     end
   end
 
