@@ -42,12 +42,18 @@ class EventMachine::MQTT::Subscription
 
   #FIXME: check topic
   def validate_sub topic
+    return false if topic.nil? or topic.empty?
     if topic.include?("#")
       sharp_in_end = (topic.end_with?("#") )
     else
       sharp_in_end = true
     end
-    plus_less_than_one = topic.force_encoding("utf-8").scan("+").count <= 1
+    begin
+      plus_less_than_one = topic.force_encoding("utf-8").scan("+").count <= 1
+    rescue ArgumentError
+      puts $!
+      puts topic
+    end
 
     sharp_in_end and plus_less_than_one
   end

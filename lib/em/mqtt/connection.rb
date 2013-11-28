@@ -35,11 +35,15 @@ class EventMachine::MQTT::Connection < EventMachine::Connection
 
     # Do we have the the full packet body now?
     if @packet and @data.length >= @packet.body_length
-      @packet.parse_body(
-        @data.slice!(0...@packet.body_length)
-      )
-      @last_received = Time.now
-      process_packet(@packet)
+      begin
+        @packet.parse_body(
+          @data.slice!(0...@packet.body_length)
+        )
+        @last_received = Time.now
+        process_packet(@packet)
+      rescue MQTT::ProtocolException
+        disconnect
+      end
       @packet = nil
       #receive_data ''
     end
@@ -47,6 +51,10 @@ class EventMachine::MQTT::Connection < EventMachine::Connection
 
   # The function needs to be sub-classed
   def process_packet(packet)
+  end
+
+  # The function needs to be sub-classed
+  def disconnect
   end
 
   def send_packet(packet)

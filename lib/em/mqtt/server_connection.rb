@@ -55,7 +55,7 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
     else
       # FIXME: deal with other packet types
       raise MQTT::ProtocolException.new(
-        "Wasn't expecting packet of type #{packet.class} when in state #{state}"
+        "#{client_id} Wasn't expecting packet of type #{packet.class} when in state #{state}"
       )
       disconnect
     end
@@ -64,6 +64,10 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
   def connect(packet)
     # FIXME: check the protocol name and version
     # FIXME: check the client id is between 1 and 23 charcters
+    if packet.client_id.nil? or packet.client_id.length < 1 
+      @state = :disconnected
+      close_connection
+    end 
     self.client_id = packet.client_id
 
     ## FIXME: disconnect old client with the same ID
@@ -75,7 +79,12 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
     @state = :connected
     @@clients << self
     @@clients_hash[client_id.to_sym] = self
-    port, ip = Socket.unpack_sockaddr_in(get_peername)
+    begin
+      port, ip = Socket.unpack_sockaddr_in(get_peername)
+    rescue
+      logger.error {$1}
+      disconnect
+    end
     #port, ip = Socket.unpack_sockaddr_in(get_sockname)
     logger.info("new client #{client_id} is now connected from #{ip}:#{port}")
 
