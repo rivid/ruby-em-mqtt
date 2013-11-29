@@ -36,6 +36,10 @@ class EventMachine::MQTT::Subscription
         tmp_topic = sub_topic + '/#'
       end
       part_a = part_a + (@topic_node[tmp_topic.to_sym] || [])
+      tmp_sub_topics = sub_topics.dup
+      tmp_sub_topics[i] = '+'
+      tmp_topic = tmp_sub_topics.join('/')
+      part_a = part_a + (@topic_node[tmp_topic.to_sym] || [])
     end
     part_a
   end

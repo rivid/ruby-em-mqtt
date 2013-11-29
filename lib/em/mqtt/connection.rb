@@ -27,7 +27,7 @@ class EventMachine::MQTT::Connection < EventMachine::Connection
     if @packet.nil? and @data.length >= 2
       begin
         @packet = MQTT::Packet.parse_header(@data)
-      rescue
+      rescue MQTT::ProtocolException, ArgumentError
         @packet = nil
         @data = ''
       end
@@ -41,7 +41,7 @@ class EventMachine::MQTT::Connection < EventMachine::Connection
         )
         @last_received = Time.now
         process_packet(@packet)
-      rescue MQTT::ProtocolException
+      rescue MQTT::ProtocolException, ArgumentError
         disconnect
       end
       @packet = nil

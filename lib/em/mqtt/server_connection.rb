@@ -105,7 +105,9 @@ class EventMachine::MQTT::ServerConnection < EventMachine::MQTT::Connection
   def disconnect
     logger.info("client #{client_id} disconnected")
     @state = :disconnected
-    @@clients_hash[client_id.to_sym]
+    unless client_id.nil?
+      @@clients_hash[client_id.to_sym]
+    end
     close_connection
   end
 
